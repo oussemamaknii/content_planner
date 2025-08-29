@@ -1,0 +1,224 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ContentStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ScheduleStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum ChannelType {
+  TWITTER
+  LINKEDIN
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+}
+
+// Core models
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  name            String?
+  image           String?
+  emailVerified   DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Auth.js relations
+  accounts        Account[]
+  sessions        Session[]
+
+  // App relations
+  memberships     Membership[]
+  contentsCreated Content[]     @relation("ContentCreatedBy")
+  contentsUpdated Content[]     @relation("ContentUpdatedBy")
+  assets          MediaAsset[]
+}
+
+model Workspace {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  memberships Membership[]
+  contents    Content[]
+  channels    Channel[]
+  assets      MediaAsset[]
+}
+
+model Membership {
+  id           String   @id @default(cuid())
+  userId       String
+  workspaceId  String
+  role         Role     @default(EDITOR)
+  createdAt    DateTime @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+// Auth.js (NextAuth) compatible models
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Content planning models
+model Content {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  title         String
+  status        ContentStatus  @default(DRAFT)
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  createdById   String
+  updatedById   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy     User      @relation("ContentCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User      @relation("ContentUpdatedBy", fields: [updatedById], references: [id])
+  versions      ContentVersion[]
+  schedules     Schedule[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model ContentVersion {
+  id         String   @id @default(cuid())
+  contentId  String
+  version    Int
+  body       String   @db.Text
+  aiPrompt   String?
+  createdAt  DateTime @default(now())
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, version])
+  @@index([contentId])
+}
+
+model Channel {
+  id          String      @id @default(cuid())
+  workspaceId String
+  type        ChannelType
+  name        String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  @@index([workspaceId])
+}
+
+model Schedule {
+  id           String         @id @default(cuid())
+  contentId    String
+  channelId    String
+  scheduledFor DateTime
+  status       ScheduleStatus @default(PENDING)
+  externalId   String?
+  error        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  key          String   // S3/R2 object key
+  url          String
+  mimeType     String
+  size         Int?
+  width        Int?
+  height       Int?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@index([workspaceId])
+  @@unique([workspaceId, key])
+}
