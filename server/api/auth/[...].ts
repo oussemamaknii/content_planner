@@ -5,6 +5,7 @@ import EmailProvider from 'next-auth/providers/email'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prismaClient } from '../../utils/prisma'
+import { ensureDefaultWorkspaceForUser } from '../../utils/workspace'
 
 const useDevCredentials = process.env.NODE_ENV !== 'production'
   && !process.env.GITHUB_ID
@@ -17,6 +18,32 @@ export default NuxtAuthHandler({
   session: { strategy: useDevCredentials ? 'jwt' : 'database' },
   pages: {
     signIn: '/auth/signin'
+  },
+  callbacks: {
+    async signIn({ user }) {
+      try {
+        if (!useDevCredentials && user?.id) {
+          await ensureDefaultWorkspaceForUser(prismaClient, String(user.id))
+        }
+        return true
+      } catch (e) {
+        console.error('signIn callback error', e)
+        return false
+      }
+    },
+    async session({ session, user, token, trigger, newSession }) {
+      try {
+        const userId = useDevCredentials ? String(token?.sub ?? '') : String(user?.id ?? '')
+        if (!userId) return session
+        const workspaceId = await ensureDefaultWorkspaceForUser(prismaClient, userId)
+        // expose in session
+        ;(session as any).workspaceId = workspaceId
+        return session
+      } catch (e) {
+        console.error('session callback error', e)
+        return session
+      }
+    }
   },
   providers: [
     // Dev fallback: credentials (no DB required)
