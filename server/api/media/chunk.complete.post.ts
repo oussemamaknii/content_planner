@@ -2,6 +2,7 @@ import { readdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { getSupabaseServerClient } from '../../utils/supabase'
 import { assertWorkspaceRole } from '../../utils/authz'
+import { generatePosterFromVideoBuffer } from '../../utils/video'
 
 export default eventHandler(async (event) => {
   const body = await readBody<{ uploadId: string; key: string; contentType?: string }>(event)
@@ -37,6 +38,16 @@ export default eventHandler(async (event) => {
     // eslint-disable-next-line no-console
     console.error('chunk.complete upload error', { message: error.message, name: (error as any)?.name, status: (error as any)?.status, statusCode: (error as any)?.statusCode })
     throw createError({ statusCode: 500, statusMessage: error.message })
+  }
+  // Generate poster for videos
+  if ((body.contentType || '').startsWith('video/')) {
+    try {
+      const poster = await generatePosterFromVideoBuffer(full)
+      const posterKey = `${body.key}.poster.jpg`
+      await supa.storage.from(bucket).upload(posterKey, poster, { contentType: 'image/jpeg', upsert: true })
+    } catch (e) {
+      console.error('poster generation failed', (e as any)?.message || e)
+    }
   }
   return { key: body.key }
 })

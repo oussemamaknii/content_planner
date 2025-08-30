@@ -22,7 +22,24 @@ export default eventHandler(async (event) => {
   if (!c) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   await assertWorkspaceRole(event, c.workspaceId, 'VIEWER')
 
-  return { ...c, version: c.versions[0] ?? null }
+  // Load linked assets ordered
+  const links = await prismaClient.contentAsset.findMany({
+    where: { contentId: id },
+    orderBy: { order: 'asc' },
+    select: {
+      id: true,
+      role: true,
+      order: true,
+      caption: true,
+      alt: true,
+      focalPoint: true,
+      asset: {
+        select: { id: true, key: true, url: true, mimeType: true, size: true, width: true, height: true }
+      }
+    }
+  })
+
+  return { ...c, version: c.versions[0] ?? null, assets: links }
 })
 
 

@@ -1,81 +1,57 @@
 <template>
-  <div class="p-6 space-y-6">
+  <div class="p-6 space-y-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold">Content</h1>
-      <form class="flex gap-2" @submit.prevent="createItem()">
-        <input v-model="title" placeholder="New content title" class="input" required />
-        <button class="btn" type="submit">Create</button>
-      </form>
+      <div class="flex items-center gap-2">
+        <select v-model="status" class="rounded border border-gray-300 px-2 py-1">
+          <option value="">All</option>
+          <option value="DRAFT">Draft</option>
+          <option value="SCHEDULED">Scheduled</option>
+          <option value="PUBLISHED">Published</option>
+          <option value="ARCHIVED">Archived</option>
+        </select>
+        <button class="btn" @click="newContent">New</button>
+      </div>
     </div>
 
-    <div class="flex items-center gap-3">
-      <label>Status:</label>
-      <select v-model="filterStatus" class="select" @change="reload()">
-        <option value="">All</option>
-        <option value="DRAFT">Draft</option>
-        <option value="SCHEDULED">Scheduled</option>
-        <option value="PUBLISHED">Published</option>
-        <option value="ARCHIVED">Archived</option>
-      </select>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="text-left text-gray-600">
-            <th class="py-2 pr-4">Title</th>
-            <th class="py-2 pr-4">Status</th>
-            <th class="py-2 pr-4">Scheduled</th>
-            <th class="py-2 pr-4">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="it in items || []" :key="it.id" class="border-t">
-            <td class="py-2 pr-4">{{ it.title }}</td>
-            <td class="py-2 pr-4">{{ it.status }}</td>
-            <td class="py-2 pr-4">{{ it.scheduledAt ? new Date(it.scheduledAt).toLocaleString() : '—' }}</td>
-            <td class="py-2 pr-4 flex gap-2">
-              <NuxtLink class="btn" :to="`/content/${it.id}`">Edit</NuxtLink>
-              <button class="btn btn-danger" @click="removeItem(it.id)">Delete</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-if="pending" class="text-sm text-gray-600">Loading…</div>
+    <div v-else>
+      <div class="grid grid-cols-1 gap-3">
+        <div v-for="it in items" :key="it.id" class="border rounded p-3 hover:bg-gray-50 flex items-center justify-between">
+          <div>
+            <div class="font-medium">{{ it.title }}</div>
+            <div class="text-xs text-gray-600 flex gap-2">
+              <span>Status: {{ it.status }}</span>
+              <span v-if="it.scheduledAt">Scheduled: {{ human(it.scheduledAt) }}</span>
+            </div>
+          </div>
+          <NuxtLink class="text-blue-600 underline" :to="`/content/${it.id}`">Open</NuxtLink>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useContent } from '../../../composables/useContent'
+import { ref, computed } from 'vue'
+import { useContentList, type ContentSummary, createContent } from '../../../composables/useContent'
 
-const { items, list, create, remove } = useContent()
-const title = ref('')
-const filterStatus = ref('')
+const status = ref('')
+const params = computed(() => ({ status: status.value as any, take: 20, skip: 0 }))
+const { data, pending, refresh } = useContentList(params)
+const items = computed<ContentSummary[]>(() => data.value?.items ?? [])
 
-async function reload() {
-  await list({ status: filterStatus.value || undefined })
+function human(iso: string) {
+  try { return new Date(iso).toLocaleString() } catch { return iso }
 }
 
-async function createItem() {
-  await create({ title: title.value })
-  title.value = ''
-  await reload()
+async function newContent() {
+  const id = await createContent({ title: 'Untitled' })
+  await refresh()
+  navigateTo(`/content/${id}`)
 }
-
-async function removeItem(id: string) {
-  await remove(id)
-  await reload()
-}
-
-onMounted(reload)
 </script>
 
 <style scoped>
-.input { @apply rounded border border-gray-300 px-3 py-2; }
-.select { @apply rounded border border-gray-300 px-2 py-1 bg-white; }
 .btn { @apply rounded bg-gray-900 text-white px-3 py-2 hover:bg-black/80; }
-.btn-danger { @apply bg-red-600 hover:bg-red-700; }
 </style>
-
-

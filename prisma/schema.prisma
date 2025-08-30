@@ -151,6 +151,7 @@ model Content {
   updatedBy     User      @relation("ContentUpdatedBy", fields: [updatedById], references: [id])
   versions      ContentVersion[]
   schedules     Schedule[]
+  assets        ContentAsset[]
 
   @@index([workspaceId])
   @@index([status])
@@ -218,7 +219,27 @@ model MediaAsset {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy User      @relation(fields: [createdById], references: [id])
+  contents  ContentAsset[]
 
   @@index([workspaceId])
   @@unique([workspaceId, key])
+}
+
+// Junction table linking Content to MediaAsset with editorial metadata
+model ContentAsset {
+  id          String  @id @default(cuid())
+  contentId   String
+  assetId     String
+  role        String  @default("secondary") // 'main' | 'secondary' | 'thumbnail'
+  order       Int     @default(0)
+  caption     String?
+  alt         String?
+  focalPoint  Json?
+
+  content Content    @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  asset   MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([assetId])
+  @@unique([contentId, assetId])
 }
