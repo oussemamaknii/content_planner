@@ -37,6 +37,11 @@
                    draggable="true" @dragstart="onDragStart(it)" @dblclick="editTime(it)">
                 <div class="font-medium truncate">{{ it.content.title }}</div>
                 <div class="text-gray-600">{{ it.channel?.type || 'CONTENT' }} · {{ new Date(it.scheduledFor).toLocaleTimeString() }}</div>
+                <div class="mt-1" v-if="!it.channel">
+                  <button class="underline" :class="enqueued[it.content.id] ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600'" :disabled="enqueued[it.content.id]" @click="enqueueContent(it.content.id)">
+                    {{ enqueued[it.content.id] ? 'Queued' : 'Enqueue' }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -55,6 +60,7 @@ type Item = { id: string; scheduledFor: string; status: string; content: { id: s
 const start = ref(startOfWeek(new Date()))
 const items = ref<Item[]>([])
 const drafts = ref<{ id: string; title: string }[]>([])
+const enqueued = ref<Record<string, boolean>>({})
 
 const day0 = computed(() => start.value)
 const day6 = computed(() => new Date(start.value.getTime() + 6 * 86400000))
@@ -73,8 +79,18 @@ function fmt(d: Date) {
 }
 
 async function load() {
-  const res: any = await $fetch('/api/calendar', { query: { start: day0.value.toISOString(), end: day6.value.toISOString() } })
+  // Send an exclusive end bound = day6 + 1 day to include the entire last day
+  const endExclusive = new Date(day6.value.getTime() + 24 * 60 * 60 * 1000)
+  const res: any = await $fetch('/api/calendar', { query: { start: day0.value.toISOString(), end: endExclusive.toISOString() } })
   items.value = res?.items ?? []
+  // Prefetch enqueue state for content-only items
+  const contentIds = items.value.filter(it => !it.channel).map(it => it.content.id)
+  for (const cid of contentIds) {
+    try {
+      const st: any = await $fetch(`/api/content/${encodeURIComponent(cid)}/enqueue`)
+      enqueued.value[cid] = Boolean(st?.enqueued)
+    } catch { enqueued.value[cid] = false }
+  }
 }
 
 async function loadDrafts() {
@@ -143,6 +159,16 @@ async function editTime(it: Item) {
     await $fetch(`/api/schedules/${encodeURIComponent(it.id)}`, { method: 'PATCH', body: { scheduledFor: dt.toISOString() } })
   }
   await load()
+}
+
+async function enqueueContent(contentId: string) {
+  try {
+    const res: any = await $fetch(`/api/content/${encodeURIComponent(contentId)}/enqueue`, { method: 'POST' })
+    enqueued.value[contentId] = true
+    alert('Enqueued')
+  } catch (e: any) {
+    alert(e?.data?.statusMessage || e?.message || 'Enqueue failed')
+  }
 }
 </script>
 

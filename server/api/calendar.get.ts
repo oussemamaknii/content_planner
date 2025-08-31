@@ -11,7 +11,7 @@ export default eventHandler(async (event) => {
   const end = q.end ? new Date(String(q.end)) : new Date(start.getTime() + 7 * 86400000)
 
   const items = await prismaClient.schedule.findMany({
-    where: { scheduledFor: { gte: start, lte: end }, content: { workspaceId } },
+    where: { scheduledFor: { gte: start, lt: end }, content: { workspaceId } },
     orderBy: { scheduledFor: 'asc' },
     select: {
       id: true,
@@ -24,7 +24,7 @@ export default eventHandler(async (event) => {
 
   // Also include Content items with scheduledAt in range that have no schedule rows
   const contentOnly = await prismaClient.content.findMany({
-    where: { workspaceId, scheduledAt: { gte: start, lte: end } },
+    where: { workspaceId, status: 'SCHEDULED', scheduledAt: { gte: start, lt: end } },
     select: { id: true, title: true, status: true, scheduledAt: true }
   })
 
