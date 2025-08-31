@@ -5,7 +5,9 @@
       <NuxtLink to="/content" class="link" :class="{ active: route.path.startsWith('/content') }">Content</NuxtLink>
       <NuxtLink to="/media" class="link" :class="{ active: route.path.startsWith('/media') }">Media</NuxtLink>
       <NuxtLink to="/calendar" class="link" :class="{ active: route.path.startsWith('/calendar') }">Calendar</NuxtLink>
+      <NuxtLink v-if="isAdmin" to="/admin" class="link" :class="{ active: route.path.startsWith('/admin') }">Admin</NuxtLink>
       <NuxtLink to="/settings/members" class="link" :class="{ active: route.path.startsWith('/settings') }">Settings</NuxtLink>
+      <NuxtLink v-if="isAdmin" to="/settings/channels" class="link" :class="{ active: route.path.startsWith('/settings/channels') }">Channels</NuxtLink>
     </div>
     <div class="flex items-center gap-3">
       <NuxtLink v-if="status==='authenticated'" to="/settings/profile" class="flex items-center gap-2">
@@ -25,6 +27,10 @@
 import { useRoute, useAuth } from '#imports'
 const route = useRoute()
 const { status, signOut, data: session } = useAuth()
+const isAdmin = computed(() => {
+  const role = (useState<any>('workspaces').value || []).find((w: any) => w.id === useState<string | null>('currentWorkspaceId').value)?.role
+  return role === 'ADMIN' || role === 'OWNER'
+})
 
 async function logout() {
   try { await signOut({ callbackUrl: '/' }) } catch {}

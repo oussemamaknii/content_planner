@@ -77,6 +77,8 @@ model Workspace {
   channels    Channel[]
   assets      MediaAsset[]
   invitations Invitation[]
+  socialAccounts SocialAccount[]
+  publishLogs  PublishLog[]
 }
 
 model Membership {
@@ -153,6 +155,7 @@ model Content {
   versions      ContentVersion[]
   schedules     Schedule[]
   assets        ContentAsset[]
+  publishLogs   PublishLog[]
 
   @@index([workspaceId])
   @@index([status])
@@ -183,6 +186,7 @@ model Channel {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   schedules Schedule[]
+  publishLogs PublishLog[]
 
   @@index([workspaceId])
 }
@@ -200,6 +204,7 @@ model Schedule {
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  publishLogs PublishLog[]
 
   @@index([scheduledFor])
   @@index([status])
@@ -243,6 +248,49 @@ model Invitation {
 
   @@index([workspaceId])
   @@index([email])
+}
+
+// Connected social account per workspace
+model SocialAccount {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  provider        String   // e.g., LINKEDIN
+  providerUserId  String
+  name            String?
+  accessToken     String   @db.Text
+  refreshToken    String?  @db.Text
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, providerUserId])
+  @@index([workspaceId])
+}
+
+// Publishing audit log
+model PublishLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contentId   String?
+  scheduleId  String?
+  channelId   String?
+  provider    String
+  externalId  String?
+  status      String
+  error       String?  @db.Text
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  content   Content?  @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  schedule  Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  channel   Channel?  @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([contentId])
+  @@index([scheduleId])
 }
 
 // Junction table linking Content to MediaAsset with editorial metadata
