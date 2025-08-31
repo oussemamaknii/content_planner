@@ -8,11 +8,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useRouter, useRoute } from '#imports'
 import { useWorkspaces } from '../../composables/useWorkspaces'
 
+const router = useRouter()
+const route = useRoute()
 const { workspaces, currentWorkspaceId, refresh } = useWorkspaces()
 onMounted(() => { refresh() })
+watch(currentWorkspaceId, async (w) => {
+  const q = { ...route.query, w: w || undefined }
+  await router.replace({ query: q })
+})
 </script>
 
 

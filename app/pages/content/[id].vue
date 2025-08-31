@@ -90,6 +90,7 @@ import { $fetch } from 'ofetch'
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const { data, pending, refresh } = useContentItem(id)
+watch(() => route.query.w, async () => { await refresh() })
 const item = computed<ContentDetail | null>(() => (data.value as any) ?? null)
 
 const title = ref('')

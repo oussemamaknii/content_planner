@@ -36,12 +36,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from '#imports'
 import { useContentList, type ContentSummary, createContent, deleteContent } from '../../../composables/useContent'
 
 const status = ref('')
 const params = computed(() => ({ status: status.value as any, take: 20, skip: 0 }))
 const { data, pending, refresh } = useContentList(params)
+const route = useRoute()
+watch(() => route.query.w, async () => { await refresh() })
 const items = computed<ContentSummary[]>(() => data.value?.items ?? [])
 
 function human(iso: string) {

@@ -6,11 +6,13 @@ export default defineEventHandler(async (event) => {
   const queryW = getQuery(event).w as string | undefined
   if (queryW) {
     event.context.workspaceId = queryW
+    return
   } else {
     // 2) Then cookie `cw`
     const cookieW = getCookie(event, 'cw')
     if (cookieW) {
       event.context.workspaceId = cookieW
+      return
     }
   }
 

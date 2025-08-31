@@ -52,7 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from '#imports'
 import { $fetch } from 'ofetch'
 
 type Item = { id: string; scheduledFor: string; status: string; content: { id: string; title: string; status: string }; channel: { id: string; type: string; name: string } }
@@ -115,7 +116,12 @@ const grouped = computed(() => {
 
 const hasItems = computed(() => items.value.length > 0)
 
+const route = useRoute()
 load(); loadDrafts()
+watch(() => route.query.w, async () => {
+  enqueued.value = {}
+  await Promise.all([load(), loadDrafts()])
+})
 
 let dragging: Item | null = null
 function onDragStart(it: Item) { dragging = it }
