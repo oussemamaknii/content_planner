@@ -11,6 +11,7 @@
         </select>
         <input v-if="status==='SCHEDULED'" v-model="scheduledAt" type="datetime-local" class="rounded border border-gray-300 px-2 py-1" />
         <button class="btn" @click="save">Save</button>
+        <button class="btn" @click="publishNow">Publish now</button>
       </div>
     </div>
 
@@ -137,6 +138,15 @@ async function save() {
     bodyDirty.value = false
   } catch (e: any) {
     alert(e?.data?.message || e?.message || 'Save failed')
+  }
+}
+
+async function publishNow() {
+  try {
+    await $fetch(`/api/content/${encodeURIComponent(id.value)}/publish`, { method: 'POST' })
+    alert('Publish triggered')
+  } catch (e: any) {
+    alert(e?.data?.statusMessage || e?.message || 'Publish failed')
   }
 }
 
