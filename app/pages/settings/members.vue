@@ -47,8 +47,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useFetch } from '#imports'
 import { useWorkspaces } from '../../../composables/useWorkspaces'
+import { $fetch } from 'ofetch'
 
 type Role = 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER'
 
@@ -61,34 +61,41 @@ const wsId = computed(() => currentWorkspaceId.value)
 
 async function load() {
   if (!wsId.value) return
-  const { data, error } = await useFetch(`/api/workspaces/${wsId.value}/members`)
-  if (!error.value) {
-    members.value = (data.value as any)?.members ?? []
+  try {
+    const res: any = await $fetch(`/api/workspaces/${wsId.value}/members`)
+    members.value = res?.members ?? []
+  } catch {
+    members.value = []
   }
 }
 
 async function invite() {
   if (!wsId.value || !inviteEmail.value) return
-  await useFetch(`/api/workspaces/${wsId.value}/members`, {
-    method: 'POST',
-    body: { email: inviteEmail.value, role: inviteRole.value }
-  })
-  inviteEmail.value = ''
-  await load()
+  try {
+    await $fetch(`/api/workspaces/${wsId.value}/members`, { method: 'POST', body: { email: inviteEmail.value, role: inviteRole.value } })
+    inviteEmail.value = ''
+    await load()
+  } catch (e: any) {
+    // user not found -> create invitation
+    if (String(e?.data?.statusMessage || '').includes('User not found')) {
+      const res: any = await $fetch(`/api/workspaces/${wsId.value}/invitations`, { method: 'POST', body: { email: inviteEmail.value, role: inviteRole.value } })
+      alert(`Invitation créée. Lien: ${res?.url}`)
+      inviteEmail.value = ''
+    } else {
+      alert(e?.data?.statusMessage || e?.message || 'Invite failed')
+    }
+  }
 }
 
 async function onChangeRole(memberId: string, role: Role) {
   if (!wsId.value) return
-  await useFetch(`/api/workspaces/${wsId.value}/members/${memberId}`, {
-    method: 'PATCH',
-    body: { role }
-  })
+  await $fetch(`/api/workspaces/${wsId.value}/members/${memberId}`, { method: 'PATCH', body: { role } })
   await load()
 }
 
 async function removeMember(memberId: string) {
   if (!wsId.value) return
-  await useFetch(`/api/workspaces/${wsId.value}/members/${memberId}`, { method: 'DELETE' })
+  await $fetch(`/api/workspaces/${wsId.value}/members/${memberId}`, { method: 'DELETE' })
   await load()
 }
 

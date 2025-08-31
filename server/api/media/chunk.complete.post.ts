@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { getSupabaseServerClient } from '../../utils/supabase'
 import { assertWorkspaceRole } from '../../utils/authz'
 import { generatePosterFromVideoBuffer } from '../../utils/video'
+import { prismaClient } from '../../utils/prisma'
+import { probeMediaBuffer } from '../../utils/ffprobe'
 
 export default eventHandler(async (event) => {
   const body = await readBody<{ uploadId: string; key: string; contentType?: string }>(event)
@@ -48,6 +50,17 @@ export default eventHandler(async (event) => {
     } catch (e) {
       console.error('poster generation failed', (e as any)?.message || e)
     }
+  }
+  // Upsert MediaAsset row with metadata
+  try {
+    const meta = await probeMediaBuffer(full)
+    await prismaClient.mediaAsset.upsert({
+      where: { workspaceId_key: { workspaceId, key: body.key } },
+      update: { mimeType: body.contentType || 'application/octet-stream', width: meta.width ?? undefined, height: meta.height ?? undefined, durationSeconds: meta.durationSeconds ?? undefined },
+      create: { workspaceId, key: body.key, url: `supabase://${bucket}/${body.key}`, mimeType: body.contentType || 'application/octet-stream', width: meta.width ?? undefined, height: meta.height ?? undefined, durationSeconds: meta.durationSeconds ?? undefined, createdById: (await import('../../utils/authz')).requireSessionUserId ? await (await import('../../utils/authz')).requireSessionUserId(event) : 'unknown' }
+    })
+  } catch (e) {
+    console.error('metadata probe failed', (e as any)?.message || e)
   }
   return { key: body.key }
 })

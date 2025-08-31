@@ -7,14 +7,16 @@
         bibliothèque médias, publication via API, analytics, et plus.
       </p>
       <div class="mt-6 flex gap-3">
-        <NuxtLink to="#" class="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800">Démarrer</NuxtLink>
-        <NuxtLink to="/auth/signin" class="rounded-md border border-gray-300 px-4 py-2 hover:bg-white">Se connecter</NuxtLink>
+        <NuxtLink to="/content" class="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800">Démarrer</NuxtLink>
+        <NuxtLink v-if="status!=='authenticated'" to="/auth/signin" class="rounded-md border border-gray-300 px-4 py-2 hover:bg-white">Se connecter</NuxtLink>
       </div>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
+import { useAuth } from '#imports'
+const { status } = useAuth()
 </script>
 
 

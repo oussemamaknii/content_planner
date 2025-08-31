@@ -1,5 +1,7 @@
 import { getSupabaseServerClient } from '../../utils/supabase'
 import { assertWorkspaceRole, requireSessionUserId } from '../../utils/authz'
+import { prismaClient } from '../../utils/prisma'
+import { probeMediaBuffer } from '../../utils/ffprobe'
 import { generatePosterFromVideoBuffer } from '../../utils/video'
 
 export default eventHandler(async (event) => {
@@ -39,6 +41,18 @@ export default eventHandler(async (event) => {
     } catch (e) {
       console.error('poster generation failed', (e as any)?.message || e)
     }
+  }
+
+  // Extract metadata and upsert MediaAsset row
+  try {
+    const meta = await probeMediaBuffer(file.data)
+    await prismaClient.mediaAsset.upsert({
+      where: { workspaceId_key: { workspaceId, key } },
+      update: { mimeType: contentType, width: meta.width ?? undefined, height: meta.height ?? undefined, durationSeconds: meta.durationSeconds ?? undefined },
+      create: { workspaceId, key, url: `supabase://${bucket}/${key}`, mimeType: contentType, width: meta.width ?? undefined, height: meta.height ?? undefined, durationSeconds: meta.durationSeconds ?? undefined, createdById: userId }
+    })
+  } catch (e) {
+    console.error('metadata probe failed', (e as any)?.message || e)
   }
 
   return { key }

@@ -25,7 +25,10 @@
               <span v-if="it.scheduledAt">Scheduled: {{ human(it.scheduledAt) }}</span>
             </div>
           </div>
-          <NuxtLink class="text-blue-600 underline" :to="`/content/${it.id}`">Open</NuxtLink>
+          <div class="flex items-center gap-3">
+            <NuxtLink class="text-blue-600 underline" :to="`/content/${it.id}`">Open</NuxtLink>
+            <button class="text-red-600 underline" @click="remove(it.id)">Delete</button>
+          </div>
         </div>
       </div>
     </div>
@@ -34,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useContentList, type ContentSummary, createContent } from '../../../composables/useContent'
+import { useContentList, type ContentSummary, createContent, deleteContent } from '../../../composables/useContent'
 
 const status = ref('')
 const params = computed(() => ({ status: status.value as any, take: 20, skip: 0 }))
@@ -49,6 +52,12 @@ async function newContent() {
   const id = await createContent({ title: 'Untitled' })
   await refresh()
   navigateTo(`/content/${id}`)
+}
+
+async function remove(id: string) {
+  if (!confirm('Delete this content?')) return
+  await deleteContent(id)
+  await refresh()
 }
 </script>
 

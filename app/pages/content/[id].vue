@@ -17,16 +17,28 @@
     <div v-if="pending" class="text-sm text-gray-600">Loading…</div>
     <div v-else-if="!item">Not found</div>
     <div v-else class="space-y-6">
-      <input v-model="title" class="w-full rounded border border-gray-300 px-3 py-2" placeholder="Title" />
-      <textarea v-model="body" class="w-full min-h-[300px] rounded border border-gray-300 px-3 py-2" placeholder="Write…" />
+      <input v-model="title" @input="titleDirty = true" class="w-full rounded border border-gray-300 px-3 py-2" placeholder="Title" />
+      <textarea v-model="body" @input="bodyDirty = true" class="w-full min-h-[300px] rounded border border-gray-300 px-3 py-2" placeholder="Write…" />
       <div class="space-y-2">
         <div class="flex items-center justify-between">
           <h2 class="font-medium">Médias</h2>
           <button class="btn" @click="showPicker = !showPicker">{{ showPicker ? 'Fermer' : 'Ajouter' }}</button>
         </div>
+        <div class="flex flex-wrap gap-2" v-if="badges.length">
+          <span
+            v-for="b in badges"
+            :key="b.type"
+            class="px-2 py-1 rounded text-xs"
+            :class="b.level==='ok' ? 'bg-green-100 text-green-800' : b.level==='warn' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'"
+            :title="(b.messages && b.messages.length) ? b.messages.join('; ') : ''"
+            :aria-label="(b.messages && b.messages.length) ? b.messages.join('; ') : `${b.type}: ${b.level}`"
+          >
+            {{ b.type }}: {{ b.level }}
+          </span>
+        </div>
         <MediaPicker v-if="showPicker" @select="onPick" />
         <div v-if="assets.length" class="space-y-2">
-          <div v-for="link in assets" :key="link.id" class="border rounded p-2 flex items-start gap-3">
+          <div v-for="(link, idx) in assets" :key="link.id" class="border rounded p-2 flex items-start gap-3" draggable="true" @dragstart="onDragStart(idx)" @dragover.prevent @drop="onDrop(idx)">
             <div class="w-24 h-16 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
               <template v-if="isImage(link.asset.mimeType, link.asset.key)">
                 <img :src="signedMap[link.asset.key] || ''" alt="thumb" class="w-full h-full object-cover" />
@@ -54,7 +66,10 @@
                 <input v-model="link.caption" class="w-full rounded border border-gray-300 px-2 py-1" @blur="updateLink(link)" />
               </div>
             </div>
-            <button class="btn" @click="removeLink(link.id)">Remove</button>
+            <div class="flex flex-col gap-1">
+              <button class="btn" @click="removeLink(link.id)">Remove</button>
+              <small class="text-xs text-gray-500">Drag to reorder</small>
+            </div>
           </div>
         </div>
         <div v-else class="text-sm text-gray-600">Aucun média lié.</div>
@@ -78,21 +93,27 @@ const item = computed<ContentDetail | null>(() => (data.value as any) ?? null)
 
 const title = ref('')
 const body = ref('')
+let titleDirty = ref(false)
+let bodyDirty = ref(false)
 const status = ref<'DRAFT'|'SCHEDULED'|'PUBLISHED'|'ARCHIVED'>('DRAFT')
 const scheduledAt = ref<string>('')
 const showPicker = ref(false)
 const assets = ref<any[]>([])
 const signedMap = ref<Record<string, string>>({})
+let dragFrom = -1
+const badges = ref<{ type: string; level: 'ok'|'warn'|'error'; messages?: string[] }[]>([])
 
 watch(item, (val) => {
   if (!val) return
-  title.value = val.title
-  body.value = val.version?.body ?? ''
+  if (!titleDirty.value) title.value = val.title
+  if (!bodyDirty.value) body.value = val.version?.body ?? ''
   status.value = val.status
   scheduledAt.value = val.scheduledAt ? toLocalInput(val.scheduledAt) : ''
   assets.value = (val as any)?.assets ?? []
   // Prefetch signed URLs for thumbnails
   preloadSigned()
+  // Load compliance badges
+  loadCompliance()
 }, { immediate: true })
 
 function toLocalInput(iso: string) {
@@ -104,13 +125,19 @@ function toLocalInput(iso: string) {
 function human(iso: string) { try { return new Date(iso).toLocaleString() } catch { return iso } }
 
 async function save() {
-  await updateContent(id.value, {
-    title: title.value,
-    body: body.value,
-    status: status.value,
-    scheduledAt: status.value === 'SCHEDULED' ? (scheduledAt.value ? new Date(scheduledAt.value).toISOString() : null) : undefined
-  })
-  await refresh()
+  try {
+    await updateContent(id.value, {
+      title: title.value,
+      body: body.value,
+      status: status.value,
+      scheduledAt: status.value === 'SCHEDULED' ? (scheduledAt.value ? new Date(scheduledAt.value).toISOString() : null) : undefined
+    })
+    await refresh()
+    titleDirty.value = false
+    bodyDirty.value = false
+  } catch (e: any) {
+    alert(e?.data?.message || e?.message || 'Save failed')
+  }
 }
 
 function isImage(mime: string, key: string) {
@@ -144,6 +171,14 @@ async function preloadSigned() {
   }
   await Promise.all(tasks)
 }
+
+async function loadCompliance() {
+  try {
+    const res: any = await $fetch(`/api/content/${encodeURIComponent(id.value)}/validate`)
+    const arr = (res?.result ?? []).map((r: any) => ({ type: r.type, level: r.level, messages: r.messages || [] }))
+    badges.value = arr
+  } catch { badges.value = [] }
+}
 function signed(key: string) { return `/api/media/sign?key=${encodeURIComponent(key)}` }
 
 async function onPick(payload: { ids: string[]; keys: string[] }) {
@@ -162,6 +197,18 @@ async function updateLink(link: any) {
 async function removeLink(linkId: string) {
   await $fetch(`/api/content/${encodeURIComponent(id.value)}/assets/${encodeURIComponent(linkId)}`, { method: 'DELETE' })
   await refresh()
+}
+
+function onDragStart(idx: number) { dragFrom = idx }
+async function onDrop(idx: number) {
+  if (dragFrom < 0 || dragFrom === idx) return
+  const arr = [...assets.value]
+  const [moved] = arr.splice(dragFrom, 1)
+  arr.splice(idx, 0, moved)
+  assets.value = arr
+  dragFrom = -1
+  const orders = assets.value.map((l, i) => ({ linkId: l.id, order: i }))
+  await $fetch(`/api/content/${encodeURIComponent(id.value)}/assets/reorder`, { method: 'POST', body: { orders } })
 }
 </script>
 

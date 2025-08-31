@@ -76,6 +76,7 @@ model Workspace {
   contents    Content[]
   channels    Channel[]
   assets      MediaAsset[]
+  invitations Invitation[]
 }
 
 model Membership {
@@ -213,6 +214,7 @@ model MediaAsset {
   size         Int?
   width        Int?
   height       Int?
+  durationSeconds Int?
   createdById  String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -223,6 +225,24 @@ model MediaAsset {
 
   @@index([workspaceId])
   @@unique([workspaceId, key])
+}
+
+// Email invitation to join a workspace
+model Invitation {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  email        String
+  role         Role     @default(EDITOR)
+  token        String   @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([email])
 }
 
 // Junction table linking Content to MediaAsset with editorial metadata

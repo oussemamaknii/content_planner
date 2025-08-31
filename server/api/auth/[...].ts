@@ -21,15 +21,9 @@ export default NuxtAuthHandler({
   },
   callbacks: {
     async signIn({ user }) {
-      try {
-        if (!useDevCredentials && user?.id) {
-          await ensureDefaultWorkspaceForUser(prismaClient, String(user.id))
-        }
-        return true
-      } catch (e) {
-        console.error('signIn callback error', e)
-        return false
-      }
+      // Do not create workspace here; with PrismaAdapter the user row may not be fully persisted yet.
+      // Workspace bootstrapping is handled in the session callback below.
+      return true
     },
     async session({ session, user, token, trigger, newSession }) {
       try {

@@ -12,6 +12,22 @@ export default eventHandler(async (event) => {
   const userId = await requireSessionUserId(event)
 
   await prismaClient.$transaction(async (tx) => {
+    // If scheduling, validate assets
+    if (body.status === 'SCHEDULED') {
+      const links = await tx.contentAsset.findMany({
+        where: { contentId: id },
+        select: { role: true, alt: true, asset: { select: { mimeType: true, key: true } } }
+      })
+      const hasMain = links.some(l => l.role === 'main')
+      const missingAlt = links.some(l => /^image\//.test(l.asset.mimeType || '') && (!l.alt || !l.alt.trim()))
+      const errors: string[] = []
+      if (!hasMain) errors.push('At least one media with role=main is required')
+      if (missingAlt) errors.push('Alt text is required for all images')
+      if (errors.length) {
+        throw createError({ statusCode: 400, statusMessage: errors.join('; ') })
+      }
+    }
+
     if (body.title !== undefined || body.status !== undefined || body.scheduledAt !== undefined) {
       await tx.content.update({
         where: { id },

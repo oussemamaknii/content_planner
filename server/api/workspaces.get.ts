@@ -12,7 +12,22 @@ export default eventHandler(async (event) => {
     select: {
       id: true,
       memberships: {
-        select: { role: true, workspace: { select: { id: true, name: true, slug: true, createdAt: true } } }
+        select: {
+          role: true,
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              createdAt: true,
+              memberships: {
+                where: { role: 'OWNER' },
+                take: 1,
+                select: { user: { select: { name: true, email: true } } }
+              }
+            }
+          }
+        }
       }
     }
   })
@@ -23,7 +38,8 @@ export default eventHandler(async (event) => {
       name: m.workspace.name,
       slug: m.workspace.slug,
       role: m.role,
-      createdAt: m.workspace.createdAt
+      createdAt: m.workspace.createdAt,
+      owner: m.workspace.memberships?.[0]?.user?.name || m.workspace.memberships?.[0]?.user?.email || null
     }))
   }
 })

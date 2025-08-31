@@ -11,9 +11,17 @@ export default eventHandler(async (event) => {
 
   const bucket = process.env.SUPABASE_BUCKET ?? 'media'
   const supa = getSupabaseServerClient()
-  const { data, error } = await supa.storage.from(bucket).createSignedUrl(decoded, 60 * 60)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
-  return { url: data?.signedUrl ?? null }
+  try {
+    const { data, error } = await supa.storage.from(bucket).createSignedUrl(decoded, 60 * 60)
+    if (error) throw error
+    return { url: data?.signedUrl ?? null }
+  } catch (e: any) {
+    const msg = String(e?.message || '')
+    if (msg.includes('Object not found') || e?.statusCode === '404' || e?.status === 404) {
+      return { url: null }
+    }
+    throw createError({ statusCode: 500, statusMessage: msg || 'sign error' })
+  }
 })
 
 

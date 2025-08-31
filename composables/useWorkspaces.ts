@@ -6,6 +6,7 @@ interface Workspace {
   name: string
   slug: string
   role: string
+  owner?: string | null
 }
 
 export function useWorkspaces() {
